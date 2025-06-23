@@ -1,0 +1,11 @@
+# DXB Events Collection Schedule - Enhanced Perplexity AI with Duplicate Filtering
+# Updated to use latest enhanced extraction system
+
+# Morning comprehensive collection (7:00 AM UAE) - Enhanced version with strong duplicate filtering
+0 7 * * * cd /home/ubuntu/DXB-events/DataCollection && source venv/bin/activate && python enhanced_collection.py >> logs/collection.log 2>&1
+
+# Evening updates collection (7:00 PM UAE) - Enhanced version with strong duplicate filtering  
+0 19 * * * cd /home/ubuntu/DXB-events/DataCollection && source venv/bin/activate && python enhanced_collection.py >> logs/collection.log 2>&1
+
+# Daily health check and count (4:00 AM UAE)
+0 4 * * * cd /home/ubuntu/DXB-events/DataCollection && source venv/bin/activate && python check_current_events.py >> logs/health_check.log 2>&1
