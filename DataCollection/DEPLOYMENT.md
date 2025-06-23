@@ -1,5 +1,7 @@
 # 🚀 DataCollection Deployment Guide
 
+*Testing CI/CD pipeline after YAML syntax fixes*
+
 ## GitHub Secrets Configuration
 
 All secrets are configured in the GitHub repository for secure deployment.
