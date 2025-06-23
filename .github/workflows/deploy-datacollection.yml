@@ -104,11 +104,11 @@ jobs:
           cd ${{ secrets.DATACOLLECTION_PATH }} &&
           source venv/bin/activate &&
           python -c "
-          from config.perplexity_settings import get_settings
-          settings = get_settings()
-          print(f\"✅ Perplexity API key loaded: {bool(settings.PERPLEXITY_API_KEY)}\")
-          print(f\"✅ MongoDB URI loaded: {bool(settings.MONGO_URI)}\")
-          print(f\"✅ Configuration test passed\")
+from config.perplexity_settings import get_settings
+settings = get_settings()
+print(f\"✅ Perplexity API key loaded: {bool(settings.PERPLEXITY_API_KEY)}\")
+print(f\"✅ MongoDB URI loaded: {bool(settings.MONGO_URI)}\")
+print(f\"✅ Configuration test passed\")
           " 2>&1
         '
         
