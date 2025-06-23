@@ -100,17 +100,11 @@ jobs:
         
     - name: Test configuration
       run: |
-        ssh -i ~/.ssh/id_rsa ${{ secrets.DATACOLLECTION_USER }}@${{ secrets.SERVER_HOST }} << 'ENDSSH'
-          cd ${{ secrets.DATACOLLECTION_PATH }}
-          source venv/bin/activate
-          python -c "
-from config.perplexity_settings import get_settings
-settings = get_settings()
-print('✅ Perplexity API key loaded:', bool(settings.PERPLEXITY_API_KEY))
-print('✅ MongoDB URI loaded:', bool(settings.MONGO_URI))
-print('✅ Configuration test passed')
-          "
-        ENDSSH
+        ssh -i ~/.ssh/id_rsa ${{ secrets.DATACOLLECTION_USER }}@${{ secrets.SERVER_HOST }} '
+          cd ${{ secrets.DATACOLLECTION_PATH }} &&
+          source venv/bin/activate &&
+          python -c "import sys; from config.perplexity_settings import get_settings; settings = get_settings(); print(\"✅ Perplexity API key loaded:\", bool(settings.PERPLEXITY_API_KEY)); print(\"✅ MongoDB URI loaded:\", bool(settings.MONGO_URI)); print(\"✅ Configuration test passed\")"
+        '
         
     - name: Verify cron jobs
       run: |
