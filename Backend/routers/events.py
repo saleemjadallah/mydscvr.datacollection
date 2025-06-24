@@ -724,14 +724,14 @@ async def deduplicate_events(
                 }
             }
         
-        # Find and remove duplicates
+        # Find and remove duplicates using automated detection
         potential_duplicates = await deduplicator.find_potential_duplicates(limit=50)
         removed_count = 0
         
         for duplicate_info in potential_duplicates:
             try:
                 similarity_score = duplicate_info.get('similarity_score', 0)
-                if similarity_score >= 0.85:  # 85% threshold
+                if similarity_score >= 0.85:  # Conservative 85% threshold for automated daily runs
                     duplicate_id = duplicate_info.get('duplicate_id')
                     if duplicate_id:
                         await db.events.delete_one({"_id": duplicate_id})

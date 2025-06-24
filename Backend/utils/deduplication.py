@@ -410,6 +410,9 @@ class EventDeduplicator:
             today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
             week_ago = today - timedelta(days=7)
             
+            # Get total events count
+            total_events = await self.mongodb.events.count_documents({})
+            
             # Today's duplicates
             today_duplicates = await self.mongodb.duplicate_logs.count_documents({
                 "detected_at": {"$gte": today}
@@ -422,6 +425,9 @@ class EventDeduplicator:
             
             # Total duplicates
             total_duplicates = await self.mongodb.duplicate_logs.count_documents({})
+            
+            # Find estimated duplicates using title similarity
+            estimated_duplicates = await self._count_potential_duplicates()
             
             # Top duplicate sources
             pipeline = [
@@ -436,22 +442,53 @@ class EventDeduplicator:
             top_sources = await self.mongodb.duplicate_logs.aggregate(pipeline).to_list(length=None)
             
             return {
+                "total_events": total_events,
                 "today_duplicates": today_duplicates,
                 "week_duplicates": week_duplicates,
                 "total_duplicates": total_duplicates,
+                "estimated_duplicates": estimated_duplicates,
                 "top_duplicate_sources": top_sources,
-                "deduplication_rate": f"{(total_duplicates / max(1, total_duplicates + await self.mongodb.events.count_documents({})) * 100):.1f}%"
+                "deduplication_rate": f"{(total_duplicates / max(1, total_duplicates + total_events) * 100):.1f}%"
             }
             
         except Exception as e:
             print(f"Error getting duplicate statistics: {e}")
             return {
+                "total_events": 0,
                 "today_duplicates": 0,
                 "week_duplicates": 0,
                 "total_duplicates": 0,
+                "estimated_duplicates": 0,
                 "top_duplicate_sources": [],
                 "deduplication_rate": "0.0%"
             }
+
+    async def _count_potential_duplicates(self) -> int:
+        """
+        Count potential duplicates using title similarity
+        """
+        try:
+            # Find events with similar titles using aggregation
+            pipeline = [
+                {"$group": {
+                    "_id": "$title",
+                    "count": {"$sum": 1}
+                }},
+                {"$match": {"count": {"$gt": 1}}},
+                {"$group": {
+                    "_id": None,
+                    "total_duplicates": {"$sum": {"$subtract": ["$count", 1]}}
+                }}
+            ]
+            
+            result = await self.mongodb.events.aggregate(pipeline).to_list(length=None)
+            if result:
+                return result[0].get("total_duplicates", 0)
+            return 0
+            
+        except Exception as e:
+            print(f"Error counting potential duplicates: {e}")
+            return 0
     
     async def find_potential_duplicates(self, limit: int = 20) -> List[Dict[str, Any]]:
         """
@@ -480,19 +517,17 @@ class EventDeduplicator:
                         for j in range(i + 1, len(events)):
                             similarity = self._calculate_similarity_score(events[i], events[j])
                             if similarity > 0.7:  # Lower threshold for investigation
+                                # Choose which event to keep (older one) and which to remove
+                                older_event = events[i] if events[i].get("created_at", datetime.min) < events[j].get("created_at", datetime.min) else events[j]
+                                newer_event = events[j] if older_event == events[i] else events[i]
+                                
                                 potential_duplicates.append({
-                                    "event1": {
-                                        "_id": events[i]["_id"],
-                                        "title": events[i]["title"],
-                                        "source_name": events[i].get("source_name")
-                                    },
-                                    "event2": {
-                                        "_id": events[j]["_id"],
-                                        "title": events[j]["title"],
-                                        "source_name": events[j].get("source_name")
-                                    },
+                                    "duplicate_id": newer_event["_id"],  # This will be removed
+                                    "keep_id": older_event["_id"],      # This will be kept
                                     "similarity_score": similarity,
-                                    "needs_review": True
+                                    "duplicate_title": newer_event["title"],
+                                    "keep_title": older_event["title"],
+                                    "needs_review": similarity < 0.9  # High confidence for 90%+ similarity
                                 })
             
             return potential_duplicates
