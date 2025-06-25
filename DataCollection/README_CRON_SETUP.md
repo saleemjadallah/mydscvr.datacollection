@@ -110,10 +110,18 @@ python test_integrated_collection.py
 ```
 
 ## Schedule
-- **Execution Time**: 1:00 AM UTC daily
+- **Execution Time**: 12:00 AM UTC daily (4:00 AM Dubai time)
 - **Expected Duration**: 15-30 minutes depending on event volume
 - **Retry Logic**: Built-in retry for failed operations
 - **Rate Limiting**: Respects API limits for all services
+
+### Updated Daily Schedule (Dubai Time):
+- **3:00 AM**: Pre-collection health check
+- **4:00 AM**: Main collection with AI image generation
+- **4:15 AM**: Hidden gems generation
+- **4:30 AM**: Health monitoring  
+- **6:00 AM**: Auto-deduplication
+- **6:00 PM**: Evening updates collection
 
 ## Success Metrics
 - Events collected and deduplicated
