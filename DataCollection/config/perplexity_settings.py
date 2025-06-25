@@ -96,6 +96,22 @@ class PerplexityDataCollectionSettings(BaseSettings):
     MAX_RETRY_ATTEMPTS: int = 3
     RETRY_DELAY_SECONDS: int = 5
     
+    # Firecrawl MCP Configuration
+    ENABLE_FIRECRAWL_SUPPLEMENT: bool = Field(default=False, env="ENABLE_FIRECRAWL_SUPPLEMENT")
+    FIRECRAWL_API_KEY: Optional[str] = Field(default=None, env="FIRECRAWL_API_KEY")
+    FIRECRAWL_PLATINUMLIST_LIMIT: int = Field(default=25, env="FIRECRAWL_PLATINUMLIST_LIMIT")
+    FIRECRAWL_TIMEOUT_LIMIT: int = Field(default=15, env="FIRECRAWL_TIMEOUT_LIMIT")
+    FIRECRAWL_WHATSON_LIMIT: int = Field(default=10, env="FIRECRAWL_WHATSON_LIMIT")
+    FIRECRAWL_REQUEST_TIMEOUT: int = Field(default=60, env="FIRECRAWL_REQUEST_TIMEOUT")
+    
+    # Hybrid extraction weights (for future analytics)
+    SOURCE_CONFIDENCE_WEIGHTS: Dict[str, float] = {
+        "perplexity_search": 0.7,
+        "firecrawl_platinumlist": 0.9,
+        "firecrawl_timeout": 0.8,
+        "firecrawl_whatson": 0.7
+    }
+    
     # Storage Configuration
     ENABLE_DEDUPLICATION: bool = True
     STORE_RAW_RESPONSES: bool = True
@@ -105,7 +121,7 @@ class PerplexityDataCollectionSettings(BaseSettings):
     class Config:
         env_file = ["DataCollection.env"]
         case_sensitive = True
-        extra = "allow"  # Allow extra environment variables
+        extra = "ignore"  # Ignore extra environment variables
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -146,6 +162,21 @@ class PerplexityDataCollectionSettings(BaseSettings):
             "requests_per_hour": self.PERPLEXITY_RATE_LIMIT,
             "requests_per_minute": self.PERPLEXITY_REQUESTS_PER_MINUTE,
             "delay_between_requests": self.REQUEST_DELAY_SECONDS
+        }
+    
+    @property
+    def firecrawl_config(self) -> Dict[str, Any]:
+        """Get Firecrawl MCP configuration"""
+        return {
+            "api_key": self.FIRECRAWL_API_KEY,
+            "enabled": self.ENABLE_FIRECRAWL_SUPPLEMENT,
+            "limits": {
+                "platinumlist": self.FIRECRAWL_PLATINUMLIST_LIMIT,
+                "timeout": self.FIRECRAWL_TIMEOUT_LIMIT,
+                "whatson": self.FIRECRAWL_WHATSON_LIMIT
+            },
+            "request_timeout": self.FIRECRAWL_REQUEST_TIMEOUT,
+            "confidence_weights": self.SOURCE_CONFIDENCE_WEIGHTS
         }
 
 # Global settings instance

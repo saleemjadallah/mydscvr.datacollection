@@ -16,8 +16,7 @@ import argparse
 # Add current directory to path for imports
 sys.path.append(str(Path(__file__).parent))
 
-from run_perplexity_collection import PerplexityDataCollectionPipeline
-from monitoring.logging_config import PerplexityMonitoringSystem, quick_health_check
+from enhanced_collection import collect_and_store_events
 from config.perplexity_settings import get_settings
 
 def setup_logging():
@@ -45,37 +44,41 @@ def setup_logging():
     )
 
 async def run_health_check():
-    """Run comprehensive health check"""
+    """Run basic health check"""
     logger.info("🏥 Starting system health check...")
     
-    monitor = PerplexityMonitoringSystem()
-    results = monitor.run_all_health_checks()
-    
-    print(f"\n{'='*60}")
-    print(f"🏥 SYSTEM HEALTH REPORT")
-    print(f"{'='*60}")
-    print(f"Overall Status: {results['overall_status'].upper()}")
-    print(f"Services: {results['summary']['healthy_services']}/{results['summary']['total_services']} healthy")
-    
-    if results['summary']['avg_response_time_ms']:
-        print(f"Average Response Time: {results['summary']['avg_response_time_ms']}ms")
-    
-    print(f"\nService Details:")
-    for service, details in results['services'].items():
-        status_emoji = "✅" if details['status'] == 'healthy' else "❌"
-        print(f"  {status_emoji} {service.replace('_', ' ').title()}: {details['status']}")
+    try:
+        settings = get_settings()
         
-        if details.get('error'):
-            print(f"    Error: {details['error']}")
-        if details.get('response_time_ms'):
-            print(f"    Response Time: {details['response_time_ms']}ms")
-    
-    print(f"{'='*60}\n")
-    
-    return results['overall_status'] == 'healthy'
+        # Check API keys
+        checks = {
+            'perplexity_api': bool(settings.PERPLEXITY_API_KEY),
+            'mongodb_uri': bool(settings.MONGO_URI),
+            'firecrawl_api': bool(settings.FIRECRAWL_API_KEY) if hasattr(settings, 'FIRECRAWL_API_KEY') else False
+        }
+        
+        print(f"\n{'='*60}")
+        print(f"🏥 SYSTEM HEALTH REPORT")
+        print(f"{'='*60}")
+        
+        all_healthy = True
+        for check, status in checks.items():
+            emoji = "✅" if status else "❌"
+            print(f"  {emoji} {check.replace('_', ' ').title()}: {'OK' if status else 'MISSING'}")
+            if not status:
+                all_healthy = False
+        
+        print(f"\nOverall Status: {'HEALTHY' if all_healthy else 'ISSUES FOUND'}")
+        print(f"{'='*60}\n")
+        
+        return all_healthy
+        
+    except Exception as e:
+        logger.error(f"Health check failed: {e}")
+        return False
 
-async def run_data_collection(mode: str = "comprehensive", categories: Optional[List[str]] = None):
-    """Run data collection with specified mode and categories"""
+async def run_data_collection(mode: str = "comprehensive", enable_firecrawl: bool = False):
+    """Run data collection using enhanced_collection.py"""
     
     # Health check first
     if not await run_health_check():
@@ -84,27 +87,22 @@ async def run_data_collection(mode: str = "comprehensive", categories: Optional[
     
     logger.info(f"🚀 Starting {mode} data collection...")
     
-    pipeline = PerplexityDataCollectionPipeline()
+    # Set environment variable for Firecrawl if requested
+    if enable_firecrawl:
+        import os
+        os.environ['ENABLE_FIRECRAWL_SUPPLEMENT'] = 'true'
     
     try:
-        if mode == "test":
-            results = await pipeline.run_test_extraction()
-        elif mode == "targeted" and categories:
-            results = await pipeline.run_targeted_extraction(categories)
-        elif mode == "comprehensive":
-            results = await pipeline.run_comprehensive_extraction()
-        elif mode == "quick":
-            # Quick mode: just a few targeted searches
-            results = await pipeline.run_targeted_extraction(["family", "entertainment"])
+        result = await collect_and_store_events()
+        success = result > 0
+        
+        if success:
+            logger.success(f"✅ Data collection completed successfully!")
+            logger.info(f"📊 Total events collected: {result}")
         else:
-            logger.error(f"❌ Unknown mode: {mode}")
-            return False
+            logger.warning("⚠️ No events were collected")
         
-        # Summary
-        logger.success(f"✅ Data collection completed successfully!")
-        logger.info(f"📊 Results: {results}")
-        
-        return True
+        return success
         
     except Exception as e:
         logger.error(f"❌ Data collection failed: {e}")
@@ -114,17 +112,25 @@ async def run_status_check():
     """Run status check and show database statistics"""
     logger.info("📊 Checking current database status...")
     
-    pipeline = PerplexityDataCollectionPipeline()
-    stats = await pipeline.get_collection_stats()
-    
-    print(f"\n{'='*60}")
-    print(f"📊 DATABASE STATUS")
-    print(f"{'='*60}")
-    print(f"Total Events: {stats.get('total_events', 0)}")
-    print(f"Family Events: {stats.get('family_events', 0)}")
-    print(f"Adult Events: {stats.get('adult_events', 0)}")
-    print(f"Last Updated: {stats.get('last_updated', 'Never')}")
-    print(f"{'='*60}\n")
+    try:
+        from perplexity_storage import PerplexityEventsStorage
+        storage = PerplexityEventsStorage()
+        
+        # Get basic collection stats
+        total_events = storage.get_total_events_count()
+        
+        print(f"\n{'='*60}")
+        print(f"📊 DATABASE STATUS")
+        print(f"{'='*60}")
+        print(f"Total Events: {total_events}")
+        print(f"Connection: {'OK' if storage else 'FAILED'}")
+        print(f"{'='*60}\n")
+        
+        storage.close()
+        
+    except Exception as e:
+        logger.error(f"Failed to get database status: {e}")
+        print(f"\n❌ Database status check failed: {e}\n")
 
 def main():
     """Main entry point with command line interface"""
@@ -165,6 +171,21 @@ Examples:
         nargs='+',
         help='Specific categories for targeted mode'
     )
+    collect_parser.add_argument(
+        '--enable-firecrawl',
+        action='store_true',
+        help='Enable Firecrawl MCP supplement (overrides environment setting)'
+    )
+    collect_parser.add_argument(
+        '--firecrawl-only',
+        action='store_true',
+        help='Run Firecrawl extraction only (testing)'
+    )
+    collect_parser.add_argument(
+        '--use-enhanced-collection',
+        action='store_true',
+        help='Use enhanced_collection.py instead of pipeline (for hybrid extraction)'
+    )
     
     args = parser.parse_args()
     
@@ -184,10 +205,32 @@ Examples:
             asyncio.run(run_status_check())
             
         elif args.command == 'collect':
-            success = asyncio.run(run_data_collection(
-                mode=args.mode,
-                categories=args.categories
-            ))
+            # Handle Firecrawl flags
+            if args.enable_firecrawl:
+                import os
+                os.environ['ENABLE_FIRECRAWL_SUPPLEMENT'] = 'true'
+            
+            if args.firecrawl_only:
+                logger.info("🔥 Running Firecrawl-only extraction for testing")
+                # For Firecrawl-only, we'll create a simpler version
+                from firecrawl_mcp_extractor import FirecrawlMCPExtractor
+                
+                async def firecrawl_only():
+                    extractor = FirecrawlMCPExtractor()
+                    results = await extractor.extract_all_sources({'platinumlist': 5, 'timeout': 3, 'whatson': 2})
+                    total = sum(len(events) for events in results.values())
+                    logger.info(f"🔥 Firecrawl test: {total} events extracted")
+                    return total
+                
+                result = asyncio.run(firecrawl_only())
+                success = result > 0
+            else:
+                # Use enhanced_collection.py for all other cases
+                success = asyncio.run(run_data_collection(
+                    mode=args.mode,
+                    enable_firecrawl=args.enable_firecrawl
+                ))
+            
             sys.exit(0 if success else 1)
             
     except KeyboardInterrupt:

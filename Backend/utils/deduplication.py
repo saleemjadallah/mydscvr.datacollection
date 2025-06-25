@@ -46,11 +46,15 @@ class EventDeduplicator:
             
             # Evaluate each candidate
             for candidate in candidates:
-                similarity_score = self._calculate_similarity_score(new_event, candidate)
+                # Use simple title-based similarity for more accurate duplicate detection
+                title_similarity = self._calculate_text_similarity(
+                    new_event.get("title", ""),
+                    candidate.get("title", "")
+                )
                 
-                # If similarity is high enough, consider it a duplicate
-                if similarity_score >= 0.75:  # Lowered from 0.85 to 0.75 (75%)
-                    await self._handle_duplicate_found(new_event, candidate, similarity_score)
+                # If titles are 85%+ similar, it's a duplicate - merge data instead of rejecting
+                if title_similarity >= 0.85:
+                    await self._handle_duplicate_found_with_merge(new_event, candidate, title_similarity)
                     return True
             
             return False
@@ -400,6 +404,132 @@ class EventDeduplicator:
             
         except Exception as e:
             print(f"Error merging event data: {e}")
+    
+    async def _handle_duplicate_found_with_merge(
+        self, 
+        new_event: Dict[str, Any], 
+        existing_event: Dict[str, Any], 
+        title_similarity: float
+    ):
+        """
+        Handle duplicates with improved merging strategy - focus on title similarity
+        """
+        try:
+            # Log the duplicate detection with new approach
+            duplicate_log = {
+                "new_event": {
+                    "source_id": new_event.get("source_id"),
+                    "source_name": new_event.get("source_name", new_event.get("source", "unknown")),
+                    "title": new_event.get("title")
+                },
+                "existing_event": {
+                    "_id": existing_event.get("_id"),
+                    "title": existing_event.get("title"),
+                    "source_name": existing_event.get("source_name", existing_event.get("source", "unknown"))
+                },
+                "title_similarity": title_similarity,
+                "detected_at": datetime.now(timezone.utc),
+                "action": "merged_duplicate",
+                "method": "title_based_90_percent"
+            }
+            
+            # Store duplicate detection log
+            await self.mongodb.duplicate_logs.insert_one(duplicate_log)
+            
+            # Enhanced merge: prioritize more complete data
+            await self._enhanced_merge_event_data(new_event, existing_event)
+            
+        except Exception as e:
+            print(f"Error handling duplicate with merge: {e}")
+    
+    async def _enhanced_merge_event_data(self, new_event: Dict[str, Any], existing_event: Dict[str, Any]):
+        """
+        Enhanced merge logic - keeps best data from both sources
+        """
+        try:
+            update_fields = {}
+            
+            # Priority rules for merging:
+            # 1. Non-empty beats empty
+            # 2. More specific beats generic (e.g., actual venue vs "Unknown")
+            # 3. Firecrawl venue data often better than Perplexity
+            # 4. Keep all image URLs and sources
+            
+            # Merge venue information (prioritize non-"Unknown" values)
+            existing_venue = existing_event.get("venue_name", "")
+            new_venue = new_event.get("venue_name", "")
+            
+            if new_venue and new_venue != "Unknown" and (not existing_venue or existing_venue == "Unknown"):
+                update_fields["venue_name"] = new_venue
+            
+            # Merge nested venue object
+            existing_venue_obj = existing_event.get("venue", {})
+            new_venue_obj = new_event.get("venue", {})
+            
+            if isinstance(new_venue_obj, dict) and isinstance(existing_venue_obj, dict):
+                merged_venue = existing_venue_obj.copy()
+                for key, value in new_venue_obj.items():
+                    if value and value != "Unknown" and (not merged_venue.get(key) or merged_venue.get(key) == "Unknown"):
+                        merged_venue[key] = value
+                
+                if merged_venue != existing_venue_obj:
+                    update_fields["venue"] = merged_venue
+            
+            # Merge descriptions (keep longer, more detailed one)
+            existing_desc = existing_event.get("description", "")
+            new_desc = new_event.get("description", "")
+            
+            if new_desc and len(new_desc) > len(existing_desc):
+                update_fields["description"] = new_desc
+            
+            # Merge image URLs
+            existing_images = existing_event.get("image_urls", [])
+            new_images = new_event.get("image_urls", [])
+            all_images = list(set(existing_images + new_images))
+            if len(all_images) > len(existing_images):
+                update_fields["image_urls"] = all_images
+            
+            # Track multiple sources
+            existing_sources = existing_event.get("sources", [])
+            if not existing_sources:
+                existing_sources = [existing_event.get("source", "unknown")]
+            
+            new_source = new_event.get("source", "unknown")
+            if new_source not in existing_sources:
+                existing_sources.append(new_source)
+                update_fields["sources"] = existing_sources
+            
+            # Merge extraction metadata for better tracking
+            existing_metadata = existing_event.get("extraction_metadata", {})
+            new_metadata = new_event.get("extraction_metadata", {})
+            
+            merged_metadata = existing_metadata.copy()
+            merged_metadata.update({
+                "merged_from_sources": existing_sources,
+                "last_merge_timestamp": datetime.now(timezone.utc).isoformat(),
+                "merge_method": "title_based_90_percent"
+            })
+            
+            # Add new metadata that doesn't overwrite existing
+            for key, value in new_metadata.items():
+                if key not in merged_metadata and value:
+                    merged_metadata[key] = value
+            
+            update_fields["extraction_metadata"] = merged_metadata
+            
+            # Update last modified timestamp
+            update_fields["updated_at"] = datetime.now(timezone.utc).isoformat()
+            
+            # Apply updates if we have any
+            if update_fields:
+                await self.mongodb.events.update_one(
+                    {"_id": existing_event["_id"]},
+                    {"$set": update_fields}
+                )
+                print(f"Enhanced merge completed for: {existing_event.get('title', 'Unknown title')}")
+            
+        except Exception as e:
+            print(f"Error in enhanced merge: {e}")
     
     async def get_duplicate_statistics(self) -> Dict[str, Any]:
         """
