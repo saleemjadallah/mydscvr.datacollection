@@ -25,7 +25,9 @@ class FirecrawlMCPExtractor:
     """
     
     def __init__(self):
-        self.api_key = os.getenv('FIRECRAWL_API_KEY', 'fc-b9da5aa77ad04cb095f4cc350520eeb7')
+        self.api_key = os.getenv('FIRECRAWL_API_KEY')
+        if not self.api_key:
+            raise ValueError("FIRECRAWL_API_KEY environment variable is required but not set")
         
         # Source configurations
         self.sources = {
