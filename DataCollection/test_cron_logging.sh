@@ -71,6 +71,24 @@ check_dependencies() {
             log_with_timestamp "⚠️ Environment file missing: $env_file"
         fi
     done
+    
+    # Check AI image generation configuration
+    log_with_timestamp "=== AI IMAGE GENERATION CONFIG ==="
+    if [ -f "$SCRIPT_DIR/DataCollection.env" ]; then
+        if grep -q "ENABLE_AI_IMAGE_GENERATION" "$SCRIPT_DIR/DataCollection.env"; then
+            AI_ENABLED=$(grep "ENABLE_AI_IMAGE_GENERATION" "$SCRIPT_DIR/DataCollection.env" | cut -d'=' -f2)
+            log_with_timestamp "🎨 AI Image Generation: $AI_ENABLED"
+        fi
+        if grep -q "OPENAI_API_KEY" "$SCRIPT_DIR/DataCollection.env"; then
+            log_with_timestamp "🔑 OpenAI API Key: Configured"
+        else
+            log_with_timestamp "❌ OpenAI API Key: Missing"
+        fi
+        if grep -q "AI_IMAGE_BATCH_SIZE" "$SCRIPT_DIR/DataCollection.env"; then
+            BATCH_SIZE=$(grep "AI_IMAGE_BATCH_SIZE" "$SCRIPT_DIR/DataCollection.env" | cut -d'=' -f2)
+            log_with_timestamp "📦 AI Batch Size: $BATCH_SIZE"
+        fi
+    fi
 }
 
 # Function to test network connectivity
