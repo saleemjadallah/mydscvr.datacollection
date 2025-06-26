@@ -53,7 +53,8 @@ app.add_middleware(
         "/api/hidden-gems",
         "/api/events", 
         "/api/notifications",
-        "/api/auth"
+        "/api/auth",
+        "/api/advice"
     ],
     allowed_origins=[
         "https://mydscvr.ai",
