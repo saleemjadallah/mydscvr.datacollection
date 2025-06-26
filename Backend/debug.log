@@ -1,0 +1,63 @@
+INFO:     Started server process [38935]
+INFO:     Waiting for application startup.
+2025-06-11 16:39:10,975 - main - WARNING - ⚠️ PostgreSQL connection failed (optional for testing): (psycopg2.OperationalError) connection to server at "localhost" (::1), port 5432 failed: Connection refused
+	Is the server running on that host and accepting TCP/IP connections?
+connection to server at "localhost" (127.0.0.1), port 5432 failed: Connection refused
+	Is the server running on that host and accepting TCP/IP connections?
+
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+2025-06-11 16:39:12,103 - main - INFO - ✅ All available databases initialized successfully
+2025-06-11 16:39:12,103 - main - INFO - 🚀 DXB Events API v1.0.0 started successfully!
+2025-06-11 16:39:12,103 - main - INFO - 📋 MongoDB Atlas database: DXB
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+✅ PostgreSQL engine created successfully
+Warning: AI APIs not available: No module named 'integrations'
+✅ MongoDB Atlas connected successfully to database: DXB
+✅ MongoDB indexes created successfully (including lifecycle management)
+✅ Redis connected successfully
+⚠️ Elasticsearch connection failed (optional for development): 'NoneType' object has no attribute 'info'
+DEBUG: Found pricing data - base_price: 1176.0, max_price: 13950.0
+DEBUG: Event 'Destination Dubai VIP 2025' has category: 'tours_and_sightseeing'
+DEBUG: Event 'The Inner Circle Experience 20' has category: 'business_and_networking'
+INFO:     127.0.0.1:61981 - "GET /api/events/?per_page=2 HTTP/1.1" 200 OK
+DEBUG: Found pricing data - base_price: 1176.0, max_price: 13950.0
+DEBUG: Event 'Destination Dubai VIP 2025' has category: 'tours_and_sightseeing'
+DEBUG: Event 'The Inner Circle Experience 20' has category: 'business_and_networking'
+INFO:     127.0.0.1:62004 - "GET /api/events/?per_page=2 HTTP/1.1" 200 OK
+DEBUG: Found pricing data - base_price: 40.0, max_price: 40.0
+DEBUG: Event 'Weaving A Dream Of Thousands O' has category: 'cultural'
+DEBUG: Found pricing data - base_price: 120.0, max_price: 120.0
+DEBUG: Event 'The Green Planet Dubai' has category: 'family_activities'
+DEBUG: Event 'Curiosity Lab Spring 2025 Term' has category: 'educational'
+DEBUG: Event 'Art Exhibitions at Dubai Mall' has category: 'arts'
+DEBUG: Event 'Fashion Fest 2025 at Mall of t' has category: 'fashion'
+DEBUG: Event 'Concept Big Brands Carnival - ' has category: 'shopping'
+DEBUG: Event 'Museum of the Future June 2025' has category: 'educational'
+DEBUG: Event 'Dubai Fountain Show' has category: 'entertainment'
+DEBUG: Found pricing data - base_price: 269.0, max_price: 269.0
+DEBUG: Event 'La Perle by Dragone' has category: 'entertainment'
+DEBUG: Event 'International Appliance and El' has category: 'technology'
+DEBUG: Event 'China Homelife Expo' has category: 'business'
+DEBUG: Event 'World Vape Show' has category: 'business'
+DEBUG: Event 'Middle East Event Show' has category: 'business'
+DEBUG: Event 'Solar & Storage Live' has category: 'technology'
+DEBUG: Event 'Mobility Live' has category: 'technology'
+DEBUG: Event 'Kite Beach Water Sports & Fami' has category: 'beach'
+DEBUG: Event 'Arabian Ranches Golf Club Fami' has category: 'dining'
+DEBUG: Found pricing data - base_price: 260.0, max_price: 260.0
+DEBUG: Event 'Moundoux Family Dining' has category: 'dining'
+DEBUG: Found pricing data - base_price: 50.0, max_price: 150.0
+DEBUG: Event 'Royal Camel Racing Club – Came' has category: 'family_activities'
+DEBUG: Found pricing data - base_price: 200.0, max_price: 400.0
+DEBUG: Event 'Dubai Red Dunes ATV, Camels, S' has category: 'adventure'
+INFO:     127.0.0.1:51321 - "GET /api/events/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52089 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52089 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:60199 - "POST /api/auth/login HTTP/1.1" 500 Internal Server Error
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2025-06-16 17:20:59,810 - main - INFO - ✅ All database connections closed
+INFO:     Application shutdown complete.
+INFO:     Finished server process [38935]
+⚠️ Error closing connections: 'NoneType' object has no attribute 'close'
