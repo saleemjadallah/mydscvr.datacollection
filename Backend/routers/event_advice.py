@@ -102,12 +102,28 @@ async def get_event_advice(
         raise HTTPException(status_code=500, detail=f"Error fetching advice: {str(e)}")
 
 
+@router.post("/", response_model=EventAdviceModel)
+async def create_advice_direct(
+    advice_data: CreateAdviceModel,
+    current_user: UserModel = Depends(get_current_user)
+):
+    """Create new advice for an event (direct endpoint for frontend compatibility)"""
+    return await create_advice_impl(advice_data, current_user)
+
+
 @router.post("/create", response_model=EventAdviceModel)
 async def create_advice(
     advice_data: CreateAdviceModel,
     current_user: UserModel = Depends(get_current_user)
 ):
-    """Create new advice for an event with duplicate prevention"""
+    """Create new advice for an event (legacy endpoint)"""
+    return await create_advice_impl(advice_data, current_user)
+
+
+async def create_advice_impl(
+    advice_data: CreateAdviceModel,
+    current_user: UserModel
+):
     if not advice_collection:
         logger.error("Database connection not available")
         raise HTTPException(status_code=500, detail="Database connection error")
