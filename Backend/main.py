@@ -81,13 +81,24 @@ if not settings.debug:
     )
 
 
-# Request timing middleware
+# Request timing and debugging middleware
 @app.middleware("http")
 async def add_process_time_header(request: Request, call_next):
     start_time = time.time()
+    
+    # Debug logging for advice endpoints
+    if "/advice" in str(request.url.path):
+        logger.info(f"🔍 DEBUG REQUEST: {request.method} {request.url.path}")
+        logger.info(f"🔍 Full URL: {request.url}")
+        logger.info(f"🔍 Headers: Authorization={request.headers.get('Authorization', 'None')[:50]}...")
+    
     response = await call_next(request)
     process_time = time.time() - start_time
     response.headers["X-Process-Time"] = str(process_time)
+    
+    # Debug logging for advice responses
+    if "/advice" in str(request.url.path):
+        logger.info(f"🔍 RESPONSE STATUS: {response.status_code}")
     
     # Log slow requests
     if process_time > 1.0:  # Log requests taking more than 1 second
@@ -237,6 +248,34 @@ app.include_router(event_advice.router)
 # Google OAuth router
 app.include_router(google_auth.router, prefix="/api")
 
+# Specific OPTIONS handler for /api/advice/
+@app.options("/api/advice/")
+async def advice_options_handler(request: Request):
+    """Handle OPTIONS specifically for /api/advice/"""
+    logger.info("🟢 OPTIONS handler for /api/advice/ called")
+    origin = request.headers.get("origin", "https://mydscvr.ai")
+    return JSONResponse(
+        content={"message": "OK"},
+        headers={
+            "Access-Control-Allow-Origin": origin,
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization",
+            "Access-Control-Allow-Credentials": "true",
+            "Access-Control-Max-Age": "3600",
+        }
+    )
+
+# Test endpoint to verify deployment
+@app.get("/api/test-deployment")
+async def test_deployment():
+    """Test endpoint to verify deployment status"""
+    return {
+        "status": "ok",
+        "message": "Deployment successful - 2025-06-27 v2",
+        "version": "1.0.2",
+        "advice_routes_loaded": True,
+        "mongodb_connected": advice_collection is not None if 'advice_collection' in globals() else False
+    }
 
 # Root endpoint
 @app.get("/")

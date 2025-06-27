@@ -27,18 +27,22 @@ load_dotenv()
 
 router = APIRouter(prefix="/api/advice", tags=["Event Advice"])
 
-# MongoDB connection
+# MongoDB connection using centralized config
+from config import settings
+
 try:
-    MONGO_URL = os.getenv("MONGO_URL", "mongodb://localhost:27017")
-    client = MongoClient(MONGO_URL)
-    db = client.DXB
+    client = MongoClient(settings.mongodb_url)
+    db = client[settings.mongodb_database]
     advice_collection = db.event_advice
     events_collection = db.events
     users_collection = db.users
     logger.info("✅ MongoDB connection established for advice service")
+    logger.info(f"📋 Using database: {settings.mongodb_database}")
 except Exception as e:
     logger.error(f"❌ MongoDB connection error: {e}")
     advice_collection = None
+    events_collection = None
+    users_collection = None
 
 
 @router.get("/event/{event_id}", response_model=List[EventAdviceModel])
@@ -108,7 +112,14 @@ async def create_advice_direct(
     current_user: UserModel = Depends(get_current_user)
 ):
     """Create new advice for an event (direct endpoint for frontend compatibility)"""
-    return await create_advice_impl(advice_data, current_user)
+    try:
+        logger.info(f"🚀 POST /api/advice/ called")
+        logger.info(f"📝 Request data: {advice_data.dict()}")
+        logger.info(f"🔐 Current user: {current_user.email if current_user else 'None'}")
+        return await create_advice_impl(advice_data, current_user)
+    except Exception as e:
+        logger.error(f"❌ Error in create_advice_direct: {type(e).__name__}: {str(e)}")
+        raise
 
 
 @router.post("/create", response_model=EventAdviceModel)
