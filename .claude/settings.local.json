@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git checkout:*)",
+      "Bash(git push:*)",
+      "Bash(git add:*)",
+      "Bash(rg:*)",
+      "Bash(git commit:*)",
+      "Bash(flutter build:*)",
+      "Bash(grep:*)",
+      "Bash(find:*)",
+      "Bash(flutter analyze:*)",
+      "Bash(ls:*)",
+      "Bash(python:*)",
+      "Bash(rm:*)",
+      "Bash(crontab:*)",
+      "Bash(ssh:*)",
+      "Bash(cat:*)",
+      "Bash(gh api:*)",
+      "Bash(curl:*)"
+    ],
+    "deny": []
+  }
+}
