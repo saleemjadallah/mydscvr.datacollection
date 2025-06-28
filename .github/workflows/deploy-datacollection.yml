@@ -37,8 +37,19 @@ jobs:
         key: ${{ secrets.SSH_PRIVATE_KEY }}
         port: 22
         script: |
-          cd /home/ubuntu/mydscvr-datacollection
-          git pull origin main
+          # Create deployment directory if it doesn't exist
+          if [ ! -d "/home/ubuntu/mydscvr-datacollection" ]; then
+            echo "Creating deployment directory..."
+            mkdir -p /home/ubuntu/mydscvr-datacollection
+            cd /home/ubuntu/mydscvr-datacollection
+            git clone https://github.com/${{ github.repository }}.git .
+          else
+            cd /home/ubuntu/mydscvr-datacollection
+            git pull origin main
+          fi
+          
+          # Navigate to DataCollection subdirectory
+          cd DataCollection
           
           # Deploy environment files with secrets
           echo "Creating environment files with GitHub Secrets..."
@@ -66,7 +77,23 @@ jobs:
           
           echo "Environment files created successfully"
           
+          # Create virtual environment if it doesn't exist
+          if [ ! -d "venv" ]; then
+            echo "Creating virtual environment..."
+            python3 -m venv venv
+          fi
+          
+          # Activate virtual environment and install dependencies
           source venv/bin/activate
+          pip install --upgrade pip
           pip install -r requirements.txt
-          sudo systemctl restart mydscvr-datacollection
-          sudo systemctl status mydscvr-datacollection
+          
+          # Check if systemctl service exists, if not just report status
+          if systemctl list-units --full -all | grep -Fq "mydscvr-datacollection.service"; then
+            echo "Restarting mydscvr-datacollection service..."
+            sudo systemctl restart mydscvr-datacollection
+            sudo systemctl status mydscvr-datacollection
+          else
+            echo "Service mydscvr-datacollection.service not found - deployment completed without service restart"
+            echo "You may need to set up the systemd service manually"
+          fi
