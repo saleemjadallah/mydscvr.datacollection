@@ -64,6 +64,45 @@ class HybridAIImageService:
         # Image generation cache
         self.generation_cache = {}
 
+        # Copyright detection patterns
+        self.copyright_patterns = {
+            'disney_characters': [
+                'little mermaid', 'ariel', 'mickey mouse', 'minnie mouse', 'donald duck',
+                'goofy', 'pluto', 'frozen', 'elsa', 'anna', 'olaf', 'moana', 'simba',
+                'lion king', 'aladdin', 'jasmine', 'belle', 'beast', 'cinderella',
+                'snow white', 'sleeping beauty', 'rapunzel', 'tangled', 'mulan',
+                'pocahontas', 'tiana', 'merida', 'brave', 'toy story', 'buzz lightyear',
+                'woody', 'cars', 'lightning mcqueen', 'finding nemo', 'dory',
+                'monsters inc', 'sulley', 'mike wazowski', 'incredibles', 'wall-e',
+                'up', 'ratatouille', 'coco', 'inside out', 'zootopia', 'moana'
+            ],
+            'marvel_dc': [
+                'spider-man', 'spiderman', 'batman', 'superman', 'wonder woman',
+                'iron man', 'captain america', 'thor', 'hulk', 'black widow',
+                'flash', 'green lantern', 'aquaman', 'joker', 'harley quinn',
+                'deadpool', 'wolverine', 'x-men', 'avengers', 'justice league'
+            ],
+            'studio_ghibli': [
+                'totoro', 'spirited away', 'chihiro', 'howls moving castle',
+                'princess mononoke', 'kiki', 'ponyo', 'castle in the sky'
+            ],
+            'other_franchises': [
+                'harry potter', 'hogwarts', 'pokemon', 'pikachu', 'star wars',
+                'darth vader', 'luke skywalker', 'yoda', 'chewbacca', 'r2d2',
+                'c3po', 'lord of the rings', 'gandalf', 'frodo', 'hobbit',
+                'game of thrones', 'dragon ball', 'naruto', 'one piece',
+                'transformers', 'optimus prime', 'bumblebee', 'teenage mutant ninja turtles'
+            ]
+        }
+
+        # DALL-E content policy error patterns
+        self.content_policy_errors = [
+            'content policy', 'safety system', 'policy violation',
+            'cannot generate', 'unable to create', 'violates our usage policies',
+            'against our content policy', 'safety guidelines', 'inappropriate content',
+            'copyrighted', 'trademark', 'intellectual property'
+        ]
+
         # Dubai venue enhancements for better context
         self.dubai_venues = {
             "burj khalifa": "iconic Burj Khalifa backdrop, luxury Dubai setting",
@@ -100,6 +139,77 @@ class HybridAIImageService:
         title = event.get('title', '')
         key_string = f"{title}_{description}"
         return hashlib.md5(key_string.encode()).hexdigest()[:12]
+
+    def _detect_copyrighted_content(self, title: str, description: str) -> Dict[str, Any]:
+        """Detect potentially copyrighted content in event title and description"""
+        
+        text = f"{title} {description}".lower()
+        detected_issues = {
+            'has_copyright_issues': False,
+            'detected_patterns': [],
+            'categories': [],
+            'risk_level': 'low'
+        }
+        
+        for category, patterns in self.copyright_patterns.items():
+            for pattern in patterns:
+                if pattern.lower() in text:
+                    detected_issues['has_copyright_issues'] = True
+                    detected_issues['detected_patterns'].append(pattern)
+                    if category not in detected_issues['categories']:
+                        detected_issues['categories'].append(category)
+        
+        # Determine risk level
+        if len(detected_issues['detected_patterns']) >= 3:
+            detected_issues['risk_level'] = 'high'
+        elif len(detected_issues['detected_patterns']) >= 1:
+            detected_issues['risk_level'] = 'medium'
+        
+        return detected_issues
+
+    def _is_content_policy_error(self, error_text: str) -> bool:
+        """Check if error message indicates DALL-E content policy violation"""
+        error_lower = error_text.lower()
+        return any(pattern in error_lower for pattern in self.content_policy_errors)
+
+    def _create_copyright_safe_prompt(self, event: Dict[str, Any]) -> str:
+        """Create a copyright-safe version of the prompt by removing specific character names"""
+        
+        title = event.get('title', '')
+        description = event.get('description', '')
+        venue_name = event.get('venue', {}).get('name', '')
+        venue_area = event.get('venue', {}).get('area', '')
+        
+        # Start with generic event description
+        safe_prompt = f"Professional event photography in Dubai: Family entertainment event"
+        
+        if venue_name and not self._detect_copyrighted_content(venue_name, '').get('has_copyright_issues'):
+            safe_prompt += f" at {venue_name}"
+        if venue_area:
+            safe_prompt += f" in {venue_area}"
+        
+        # Add generic descriptions based on event type
+        event_type = self._detect_event_type(title, description)
+        
+        generic_descriptions = {
+            'family': 'family-friendly entertainment show with colorful stage performance',
+            'concert': 'live musical performance with stage lighting and audience',
+            'art': 'cultural exhibition with artistic displays and gallery setting',
+            'festival': 'outdoor celebration with festive atmosphere and community gathering',
+            'business': 'professional conference with modern presentation setup',
+            'dining': 'elegant dining experience with sophisticated restaurant ambiance',
+            'nightlife': 'evening entertainment venue with dynamic lighting',
+            'meditation': 'peaceful wellness session with serene atmosphere'
+        }
+        
+        if event_type in generic_descriptions:
+            safe_prompt += f". {generic_descriptions[event_type]}."
+        else:
+            safe_prompt += ". Entertainment event with engaging atmosphere and audience participation."
+        
+        safe_prompt += " High-quality professional photography, modern Dubai aesthetic, no text overlay, no specific character representations."
+        
+        return safe_prompt
 
     def _analyze_description_quality(self, description: str) -> Dict[str, Any]:
         """Analyze description quality for prompt generation"""
@@ -254,7 +364,7 @@ class HybridAIImageService:
         return base_prompt
 
     async def generate_image(self, event: Dict[str, Any]) -> Optional[str]:
-        """Generate AI image using hybrid approach with permanent storage"""
+        """Generate AI image using hybrid approach with permanent storage and copyright detection"""
 
         event_title = event.get('title', 'Unknown Event')
         event_id = str(event.get('_id', ''))
@@ -267,9 +377,28 @@ class HybridAIImageService:
                 logger.info(f"📋 Using cached image for: {event_title}")
                 return self.generation_cache[cache_key]
 
-            # Create hybrid prompt
-            prompt = self._create_hybrid_prompt(event)
-            logger.debug(f"🎯 Hybrid prompt: {prompt}")
+            # Check for copyrighted content
+            copyright_check = self._detect_copyrighted_content(
+                event.get('title', ''), 
+                event.get('description', '')
+            )
+            
+            if copyright_check['has_copyright_issues']:
+                logger.warning(f"⚠️ Copyright issues detected for: {event_title}")
+                logger.warning(f"   Detected patterns: {copyright_check['detected_patterns']}")
+                logger.warning(f"   Risk level: {copyright_check['risk_level']}")
+                
+                if copyright_check['risk_level'] == 'high':
+                    logger.info(f"🚫 Skipping AI generation due to high copyright risk: {event_title}")
+                    return None
+                else:
+                    logger.info(f"🔄 Using copyright-safe prompt for: {event_title}")
+                    prompt = self._create_copyright_safe_prompt(event)
+            else:
+                # Create hybrid prompt
+                prompt = self._create_hybrid_prompt(event)
+            
+            logger.debug(f"🎯 Final prompt: {prompt}")
 
             # Prepare API request
             payload = {
@@ -330,6 +459,67 @@ class HybridAIImageService:
                     else:
                         error_text = await response.text()
                         logger.error(f"❌ DALL-E API error for {event_title}: {response.status} - {error_text}")
+                        
+                        # Check if this is a content policy error
+                        if self._is_content_policy_error(error_text):
+                            logger.warning(f"🚫 Content policy violation detected for: {event_title}")
+                            
+                            # If we haven't tried the safe prompt yet, try it
+                            if not copyright_check['has_copyright_issues']:
+                                logger.info(f"🔄 Retrying with copyright-safe prompt for: {event_title}")
+                                try:
+                                    safe_prompt = self._create_copyright_safe_prompt(event)
+                                    safe_payload = {
+                                        "model": "dall-e-3",
+                                        "prompt": safe_prompt,
+                                        "size": "1024x1024",
+                                        "quality": "hd",
+                                        "n": 1
+                                    }
+                                    
+                                    async with session.post(
+                                        self.base_url,
+                                        headers=self.headers,
+                                        json=safe_payload,
+                                        timeout=aiohttp.ClientTimeout(total=60)
+                                    ) as retry_response:
+                                        
+                                        if retry_response.status == 200:
+                                            retry_result = await retry_response.json()
+                                            temp_image_url = retry_result['data'][0]['url']
+                                            logger.info(f"✅ Safe prompt succeeded for: {event_title}")
+                                            
+                                            # Store image permanently if ImageService is available
+                                            if self.image_service and event_id:
+                                                try:
+                                                    permanent_url = await self._store_image_permanently(
+                                                        temp_image_url, event_id, event_title
+                                                    )
+                                                    if permanent_url:
+                                                        self.generation_cache[cache_key] = permanent_url
+                                                        return permanent_url
+                                                    else:
+                                                        self.generation_cache[cache_key] = temp_image_url
+                                                        return temp_image_url
+                                                except Exception as e:
+                                                    logger.error(f"❌ Error storing safe image: {str(e)}")
+                                                    self.generation_cache[cache_key] = temp_image_url
+                                                    return temp_image_url
+                                            else:
+                                                self.generation_cache[cache_key] = temp_image_url
+                                                return temp_image_url
+                                        else:
+                                            safe_error = await retry_response.text()
+                                            logger.error(f"❌ Safe prompt also failed: {safe_error}")
+                                            return None
+                                            
+                                except Exception as retry_error:
+                                    logger.error(f"❌ Error during safe prompt retry: {str(retry_error)}")
+                                    return None
+                            else:
+                                logger.info(f"🚫 Already tried safe prompt, skipping: {event_title}")
+                                return None
+                        
                         return None
 
         except Exception as e:
@@ -403,6 +593,33 @@ class HybridAIImageService:
 
         except Exception as e:
             logger.error(f"❌ Error updating event {event_id} with image: {str(e)}")
+            return False
+
+    async def mark_event_as_copyright_skipped(self, db, event_id: str, reason: str) -> bool:
+        """Mark event as skipped due to copyright issues"""
+
+        try:
+            result = await db.events.update_one(
+                {"_id": event_id},
+                {
+                    "$set": {
+                        "images.status": "skipped_copyright",
+                        "images.skipped_at": datetime.now().isoformat(),
+                        "images.skip_reason": reason,
+                        "images.generation_method": "hybrid_description_based"
+                    }
+                }
+            )
+
+            if result.modified_count > 0:
+                logger.info(f"✅ Marked event {event_id} as copyright skipped")
+                return True
+            else:
+                logger.warning(f"⚠️ No event found with ID {event_id}")
+                return False
+
+        except Exception as e:
+            logger.error(f"❌ Error marking event {event_id} as skipped: {str(e)}")
             return False
 
 

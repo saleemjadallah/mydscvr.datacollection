@@ -96,6 +96,7 @@ class June28ImageFixer:
         success_count = 0
         failed_count = 0
         skipped_count = 0
+        copyright_skipped_count = 0
         
         logger.info(f"🎨 Starting AI image generation for {total_events} events from June 28th")
         logger.info("=" * 80)
@@ -127,12 +128,45 @@ class June28ImageFixer:
                         skipped_count += 1
                         continue
                     
+                    # Check for copyrighted content and skip if needed
+                    copyright_keywords = ['little mermaid', 'disney', 'marvel', 'star wars', 'mickey mouse', 'frozen']
+                    if any(keyword in event_title.lower() for keyword in copyright_keywords):
+                        logger.warning(f"⚠️ Skipping copyrighted content: {event_title}")
+                        skipped_count += 1
+                        continue
+                    
+                    # Check for copyright issues first
+                    copyright_check = self.ai_service._detect_copyrighted_content(
+                        event.get('title', ''), 
+                        event.get('description', '')
+                    )
+                    
+                    if copyright_check['has_copyright_issues'] and copyright_check['risk_level'] == 'high':
+                        # Skip high-risk copyright content
+                        copyright_skipped_count += 1
+                        logger.warning(f"🚫 [{event_num}/{total_events}] Skipping due to copyright risk: {event_title}")
+                        logger.warning(f"   Detected: {copyright_check['detected_patterns']}")
+                        
+                        # Mark as copyright skipped in database
+                        try:
+                            await self.ai_service.mark_event_as_copyright_skipped(
+                                self.db, event['_id'], 
+                                f"High copyright risk - patterns: {copyright_check['detected_patterns']}"
+                            )
+                        except Exception as update_error:
+                            logger.error(f"❌ Failed to mark event as copyright skipped: {update_error}")
+                        
+                        continue
+                    
                     # Generate AI image
                     image_url = await self.ai_service.generate_image(event)
                     
                     if image_url:
-                        # Create prompt for storage
-                        prompt_used = self.ai_service._create_hybrid_prompt(event)
+                        # Create prompt for storage (will be safe prompt if copyright issues detected)
+                        if copyright_check['has_copyright_issues']:
+                            prompt_used = self.ai_service._create_copyright_safe_prompt(event)
+                        else:
+                            prompt_used = self.ai_service._create_hybrid_prompt(event)
                         
                         # Update event with generated image
                         success = await self.ai_service.update_event_with_image(
@@ -141,7 +175,10 @@ class June28ImageFixer:
                         
                         if success:
                             success_count += 1
-                            logger.info(f"✅ [{event_num}/{total_events}] Generated image for: {event_title}")
+                            if copyright_check['has_copyright_issues']:
+                                logger.info(f"✅ [{event_num}/{total_events}] Generated safe image for: {event_title}")
+                            else:
+                                logger.info(f"✅ [{event_num}/{total_events}] Generated image for: {event_title}")
                             logger.info(f"🔗 Image URL: {image_url[:100]}...")
                         else:
                             failed_count += 1
@@ -190,6 +227,7 @@ class June28ImageFixer:
             logger.info(f"   ✅ Success: {success_count}")
             logger.info(f"   ❌ Failed: {failed_count}")
             logger.info(f"   ⏭️ Skipped: {skipped_count}")
+            logger.info(f"   🚫 Copyright Skipped: {copyright_skipped_count}")
             
             # Rate limiting between batches (except for last batch)
             if i + batch_size < total_events:
@@ -204,6 +242,7 @@ class June28ImageFixer:
         logger.info(f"   ✅ Successfully generated: {success_count} images")
         logger.info(f"   ❌ Failed: {failed_count} images")
         logger.info(f"   ⏭️ Skipped (already had images): {skipped_count} images")
+        logger.info(f"   🚫 Skipped (copyright issues): {copyright_skipped_count} images")
         
         if success_count + failed_count > 0:
             success_rate = (success_count / (success_count + failed_count)) * 100
@@ -215,7 +254,8 @@ class June28ImageFixer:
             'total': total_events,
             'success': success_count,
             'failed': failed_count,
-            'skipped': skipped_count
+            'skipped': skipped_count,
+            'copyright_skipped': copyright_skipped_count
         }
     
     async def close_connections(self):
