@@ -16,7 +16,7 @@ import subprocess
 import tempfile
 
 # Load environment variables
-load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), 'AI_API.env'))
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), 'DataCollection.env'))
 
 class FirecrawlMCPExtractor:
     """
