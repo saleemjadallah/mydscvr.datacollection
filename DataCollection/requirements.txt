@@ -24,6 +24,9 @@ jsonschema==4.20.0
 # Retry logic and error handling
 tenacity==8.2.3
 
+# Firecrawl MCP Integration
+mcp>=1.0.0
+
 # Development and testing (optional)
 pytest==7.4.4
 pytest-asyncio==0.23.2
@@ -31,5 +34,5 @@ pytest-asyncio==0.23.2
 # Utilities
 requests==2.31.0
 
-# Note: Removed Firecrawl, Celery, Redis, and other unused dependencies
-# System now uses only Perplexity AI for event discovery and extraction 
+# Note: Added MCP for Firecrawl MCP integration
+# System uses Perplexity AI + Firecrawl MCP for hybrid event discovery 
