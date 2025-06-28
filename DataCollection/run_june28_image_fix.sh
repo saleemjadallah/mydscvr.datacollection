@@ -92,7 +92,7 @@ else
 fi
 
 # Check if MongoDB URI is configured
-if grep -q "Mongo_URI=mongodb" "Mongo.env"; then
+if grep -q "Mongo_URI=mongodb" "Mongo.env" || grep -q "Mongo_URI=mongodb+srv" "Mongo.env"; then
     print_status $GREEN "✅ MongoDB URI configured"
 else
     print_status $RED "❌ FATAL: MongoDB URI not properly configured in Mongo.env"
