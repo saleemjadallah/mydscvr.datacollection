@@ -37,6 +37,33 @@ jobs:
         script: |
           cd /home/ubuntu/mydscvr-datacollection
           git pull origin main
+          
+          # Deploy environment files with secrets
+          echo "Creating environment files with GitHub Secrets..."
+          
+          # Create AI_API.env with all AI service keys
+          cat > AI_API.env << EOF
+          OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+          PERPLEXITY_API_KEY=${{ secrets.PERPLEXITY_API_KEY }}
+          EOF
+          
+          # Create Mongo.env with database configuration
+          cat > Mongo.env << EOF
+          Mongo_URI=${{ secrets.MONGO_URI }}
+          EOF
+          
+          # Create DataCollection.env with all configuration
+          cat > DataCollection.env << EOF
+          OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+          PERPLEXITY_API_KEY=${{ secrets.PERPLEXITY_API_KEY }}
+          MONGO_URI=${{ secrets.MONGO_URI }}
+          EOF
+          
+          # Set secure permissions on environment files
+          chmod 600 AI_API.env Mongo.env DataCollection.env
+          
+          echo "Environment files created successfully"
+          
           source venv/bin/activate
           pip install -r requirements.txt
           sudo systemctl restart mydscvr-datacollection
