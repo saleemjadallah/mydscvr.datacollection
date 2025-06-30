@@ -101,110 +101,79 @@ class June28ImageFixer:
         logger.info(f"🎨 Starting AI image generation for {total_events} events from June 28th")
         logger.info("=" * 80)
         
-        # Process events in batches to manage API rate limits
-        batch_size = int(os.getenv('AI_IMAGE_BATCH_SIZE', '5'))
-        batch_delay = int(os.getenv('AI_IMAGE_BATCH_DELAY', '10'))
-        
-        for i in range(0, total_events, batch_size):
-            batch = events[i:i + batch_size]
-            batch_num = (i // batch_size) + 1
-            total_batches = (total_events + batch_size - 1) // batch_size
+        # Process events sequentially without batching
+        for event_num, event in enumerate(events, 1):
+            event_title = event.get('title', 'Unknown Event')
+            event_id = str(event.get('_id', ''))
             
-            logger.info(f"📦 Processing batch {batch_num}/{total_batches}: {len(batch)} events")
-            
-            # Process each event in the batch
-            for j, event in enumerate(batch):
-                event_num = i + j + 1
-                event_title = event.get('title', 'Unknown Event')
-                event_id = str(event.get('_id', ''))
+            try:
+                logger.info(f"🎨 [{event_num}/{total_events}] Generating image for: {event_title}")
                 
-                try:
-                    logger.info(f"🎨 [{event_num}/{total_events}] Generating image for: {event_title}")
+                # Check if event already has an image (double-check)
+                existing_image = event.get('images', {}).get('ai_generated')
+                if existing_image and existing_image != "":
+                    logger.info(f"⏭️ Event already has image, skipping: {event_title}")
+                    skipped_count += 1
+                    continue
+                
+                # Check for copyrighted content and skip if needed
+                copyright_keywords = ['little mermaid', 'disney', 'marvel', 'star wars', 'mickey mouse', 'frozen']
+                if any(keyword in event_title.lower() for keyword in copyright_keywords):
+                    logger.warning(f"⚠️ Skipping copyrighted content: {event_title}")
+                    skipped_count += 1
+                    continue
+                
+                # Check for copyright issues first
+                copyright_check = self.ai_service._detect_copyrighted_content(
+                    event.get('title', ''), 
+                    event.get('description', '')
+                )
+                
+                if copyright_check['has_copyright_issues'] and copyright_check['risk_level'] == 'high':
+                    # Skip high-risk copyright content
+                    copyright_skipped_count += 1
+                    logger.warning(f"🚫 [{event_num}/{total_events}] Skipping due to copyright risk: {event_title}")
+                    logger.warning(f"   Detected: {copyright_check['detected_patterns']}")
                     
-                    # Check if event already has an image (double-check)
-                    existing_image = event.get('images', {}).get('ai_generated')
-                    if existing_image and existing_image != "":
-                        logger.info(f"⏭️ Event already has image, skipping: {event_title}")
-                        skipped_count += 1
-                        continue
+                    # Mark as copyright skipped in database
+                    try:
+                        await self.ai_service.mark_event_as_copyright_skipped(
+                            self.db, event['_id'], 
+                            f"High copyright risk - patterns: {copyright_check['detected_patterns']}"
+                        )
+                    except Exception as update_error:
+                        logger.error(f"❌ Failed to mark event as copyright skipped: {update_error}")
                     
-                    # Check for copyrighted content and skip if needed
-                    copyright_keywords = ['little mermaid', 'disney', 'marvel', 'star wars', 'mickey mouse', 'frozen']
-                    if any(keyword in event_title.lower() for keyword in copyright_keywords):
-                        logger.warning(f"⚠️ Skipping copyrighted content: {event_title}")
-                        skipped_count += 1
-                        continue
+                    continue
+                
+                # Generate AI image
+                image_url = await self.ai_service.generate_image(event)
+                
+                if image_url:
+                    # Create prompt for storage (will be safe prompt if copyright issues detected)
+                    if copyright_check['has_copyright_issues']:
+                        prompt_used = self.ai_service._create_copyright_safe_prompt(event)
+                    else:
+                        prompt_used = self.ai_service._create_hybrid_prompt(event)
                     
-                    # Check for copyright issues first
-                    copyright_check = self.ai_service._detect_copyrighted_content(
-                        event.get('title', ''), 
-                        event.get('description', '')
+                    # Update event with generated image
+                    success = await self.ai_service.update_event_with_image(
+                        self.db, event['_id'], image_url, prompt_used
                     )
                     
-                    if copyright_check['has_copyright_issues'] and copyright_check['risk_level'] == 'high':
-                        # Skip high-risk copyright content
-                        copyright_skipped_count += 1
-                        logger.warning(f"🚫 [{event_num}/{total_events}] Skipping due to copyright risk: {event_title}")
-                        logger.warning(f"   Detected: {copyright_check['detected_patterns']}")
-                        
-                        # Mark as copyright skipped in database
-                        try:
-                            await self.ai_service.mark_event_as_copyright_skipped(
-                                self.db, event['_id'], 
-                                f"High copyright risk - patterns: {copyright_check['detected_patterns']}"
-                            )
-                        except Exception as update_error:
-                            logger.error(f"❌ Failed to mark event as copyright skipped: {update_error}")
-                        
-                        continue
-                    
-                    # Generate AI image
-                    image_url = await self.ai_service.generate_image(event)
-                    
-                    if image_url:
-                        # Create prompt for storage (will be safe prompt if copyright issues detected)
+                    if success:
+                        success_count += 1
                         if copyright_check['has_copyright_issues']:
-                            prompt_used = self.ai_service._create_copyright_safe_prompt(event)
+                            logger.info(f"✅ [{event_num}/{total_events}] Generated safe image for: {event_title}")
                         else:
-                            prompt_used = self.ai_service._create_hybrid_prompt(event)
-                        
-                        # Update event with generated image
-                        success = await self.ai_service.update_event_with_image(
-                            self.db, event['_id'], image_url, prompt_used
-                        )
-                        
-                        if success:
-                            success_count += 1
-                            if copyright_check['has_copyright_issues']:
-                                logger.info(f"✅ [{event_num}/{total_events}] Generated safe image for: {event_title}")
-                            else:
-                                logger.info(f"✅ [{event_num}/{total_events}] Generated image for: {event_title}")
-                            logger.info(f"🔗 Image URL: {image_url[:100]}...")
-                        else:
-                            failed_count += 1
-                            logger.error(f"❌ [{event_num}/{total_events}] Failed to update database for: {event_title}")
+                            logger.info(f"✅ [{event_num}/{total_events}] Generated image for: {event_title}")
+                        logger.info(f"🔗 Image URL: {image_url[:100]}...")
                     else:
                         failed_count += 1
-                        logger.error(f"❌ [{event_num}/{total_events}] Failed to generate image for: {event_title}")
-                        
-                        # Mark as failed in database
-                        try:
-                            await self.db.events.update_one(
-                                {"_id": event['_id']},
-                                {
-                                    "$set": {
-                                        "images.status": "failed",
-                                        "images.failed_at": datetime.now().isoformat(),
-                                        "images.error": "AI generation failed - June 28th fix attempt"
-                                    }
-                                }
-                            )
-                        except Exception as update_error:
-                            logger.error(f"❌ Failed to mark event as failed: {update_error}")
-                
-                except Exception as e:
+                        logger.error(f"❌ [{event_num}/{total_events}] Failed to update database for: {event_title}")
+                else:
                     failed_count += 1
-                    logger.error(f"❌ [{event_num}/{total_events}] Error processing {event_title}: {str(e)}")
+                    logger.error(f"❌ [{event_num}/{total_events}] Failed to generate image for: {event_title}")
                     
                     # Mark as failed in database
                     try:
@@ -214,25 +183,39 @@ class June28ImageFixer:
                                 "$set": {
                                     "images.status": "failed",
                                     "images.failed_at": datetime.now().isoformat(),
-                                    "images.error": f"Exception during generation: {str(e)}"
+                                    "images.error": "AI generation failed - June 28th fix attempt"
                                 }
                             }
                         )
                     except Exception as update_error:
                         logger.error(f"❌ Failed to mark event as failed: {update_error}")
-            
-            # Progress update after each batch
-            processed = min(i + batch_size, total_events)
-            logger.info(f"📊 Progress: {processed}/{total_events} events processed")
-            logger.info(f"   ✅ Success: {success_count}")
-            logger.info(f"   ❌ Failed: {failed_count}")
-            logger.info(f"   ⏭️ Skipped: {skipped_count}")
-            logger.info(f"   🚫 Copyright Skipped: {copyright_skipped_count}")
-            
-            # Rate limiting between batches (except for last batch)
-            if i + batch_size < total_events:
-                logger.info(f"⏸️ Waiting {batch_delay} seconds between batches...")
-                await asyncio.sleep(batch_delay)
+                
+                # Progress update every 10 events
+                if event_num % 10 == 0:
+                    logger.info(f"📊 Progress: {event_num}/{total_events} events processed")
+                    logger.info(f"   ✅ Success: {success_count}")
+                    logger.info(f"   ❌ Failed: {failed_count}")
+                    logger.info(f"   ⏭️ Skipped: {skipped_count}")
+                    logger.info(f"   🚫 Copyright Skipped: {copyright_skipped_count}")
+                
+            except Exception as e:
+                failed_count += 1
+                logger.error(f"❌ [{event_num}/{total_events}] Error processing {event_title}: {str(e)}")
+                
+                # Mark as failed in database
+                try:
+                    await self.db.events.update_one(
+                        {"_id": event['_id']},
+                        {
+                            "$set": {
+                                "images.status": "failed",
+                                "images.failed_at": datetime.now().isoformat(),
+                                "images.error": f"Exception during generation: {str(e)}"
+                            }
+                        }
+                    )
+                except Exception as update_error:
+                    logger.error(f"❌ Failed to mark event as failed: {update_error}")
         
         # Final summary
         logger.info("=" * 80)

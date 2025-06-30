@@ -89,6 +89,26 @@ check_dependencies() {
             log_with_timestamp "📦 AI Batch Size: $BATCH_SIZE"
         fi
     fi
+    
+    # Check Firecrawl MCP configuration
+    log_with_timestamp "=== FIRECRAWL MCP CONFIG ==="
+    if [ -f "$SCRIPT_DIR/DataCollection.env" ]; then
+        if grep -q "ENABLE_FIRECRAWL_SUPPLEMENT" "$SCRIPT_DIR/DataCollection.env"; then
+            FIRECRAWL_ENABLED=$(grep "ENABLE_FIRECRAWL_SUPPLEMENT" "$SCRIPT_DIR/DataCollection.env" | cut -d'=' -f2)
+            log_with_timestamp "🔥 Firecrawl MCP: $FIRECRAWL_ENABLED"
+        else
+            log_with_timestamp "⚠️ Firecrawl MCP: Not configured (defaulting to disabled)"
+        fi
+        if grep -q "FIRECRAWL_API_KEY" "$SCRIPT_DIR/DataCollection.env"; then
+            log_with_timestamp "🔑 Firecrawl API Key: Configured"
+        else
+            log_with_timestamp "❌ Firecrawl API Key: Missing"
+        fi
+        if grep -q "FIRECRAWL_PLATINUMLIST_LIMIT" "$SCRIPT_DIR/DataCollection.env"; then
+            PLATINUMLIST_LIMIT=$(grep "FIRECRAWL_PLATINUMLIST_LIMIT" "$SCRIPT_DIR/DataCollection.env" | cut -d'=' -f2)
+            log_with_timestamp "📊 Platinumlist Limit: $PLATINUMLIST_LIMIT"
+        fi
+    fi
 }
 
 # Function to test network connectivity
@@ -107,6 +127,13 @@ test_connectivity() {
         log_with_timestamp "✅ Perplexity API host reachable"
     else
         log_with_timestamp "❌ Perplexity API host unreachable"
+    fi
+    
+    # Test Firecrawl API
+    if ping -c 1 api.firecrawl.dev >/dev/null 2>&1; then
+        log_with_timestamp "✅ Firecrawl API host reachable"
+    else
+        log_with_timestamp "❌ Firecrawl API host unreachable"
     fi
     
     # Test general internet
