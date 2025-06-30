@@ -62,8 +62,12 @@ update_env_var() {
     local file="$3"
     
     if grep -q "^${var_name}=" "$file"; then
-        # Update existing variable
-        sed -i "s/^${var_name}=.*/${var_name}=${var_value}/" "$file"
+        # Update existing variable (macOS and Linux compatible)
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            sed -i "" "s/^${var_name}=.*/${var_name}=${var_value}/" "$file"
+        else
+            sed -i "s/^${var_name}=.*/${var_name}=${var_value}/" "$file"
+        fi
         log_message "✅ Updated $var_name=$var_value"
     else
         # Add new variable
