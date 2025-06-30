@@ -1,0 +1,67 @@
+name: Deploy DataCollection to EC2
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Deploy to EC2
+      uses: appleboy/ssh-action@v0.1.5
+      with:
+        host: ${{ secrets.EC2_HOST }}
+        username: ${{ secrets.EC2_USER }}
+        key: ${{ secrets.EC2_KEY }}
+        script: |
+          cd /home/ubuntu/mydscvr-datacollection
+          
+          # Pull latest changes
+          git pull origin main
+          
+          # Create environment file from GitHub secrets
+          cat > .env << EOF
+          # MongoDB Configuration
+          MONGODB_URI=${{ secrets.MONGODB_URI }}
+          
+          # AI Services
+          PERPLEXITY_API_KEY=${{ secrets.PERPLEXITY_API_KEY }}
+          OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+          REPLICATE_API_TOKEN=${{ secrets.REPLICATE_API_TOKEN }}
+          
+          # Firecrawl MCP Configuration
+          ENABLE_FIRECRAWL_SUPPLEMENT=true
+          FIRECRAWL_API_KEY=${{ secrets.FIRECRAWL_API_KEY }}
+          FIRECRAWL_PLATINUMLIST_LIMIT=25
+          FIRECRAWL_TIMEOUT_LIMIT=15
+          FIRECRAWL_WHATSON_LIMIT=10
+          
+          # AI Image Generation
+          ENABLE_AI_IMAGE_GENERATION=true
+          AI_IMAGE_BATCH_SIZE=5
+          AI_IMAGE_BATCH_DELAY=10
+          
+          # Collection Settings
+          COLLECTION_SCHEDULE=daily
+          ENABLE_LOGGING=true
+          EOF
+          
+          # Activate virtual environment and install/update dependencies
+          source venv/bin/activate
+          pip install -r requirements.txt
+          
+          # Restart the service if it exists
+          if systemctl is-active --quiet mydscvr-datacollection; then
+            sudo systemctl restart mydscvr-datacollection
+            echo "DataCollection service restarted"
+          else
+            echo "DataCollection service not running as systemd service"
+          fi
+          
+          echo "Deployment completed successfully"
