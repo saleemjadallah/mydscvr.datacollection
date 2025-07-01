@@ -8,11 +8,15 @@ import asyncio
 import json
 import os
 from datetime import datetime
+from dotenv import load_dotenv
 from perplexity_events_extractor import DubaiEventsPerplexityExtractor
 from firecrawl_mcp_extractor import FirecrawlMCPExtractor
 from perplexity_storage import PerplexityEventsStorage
 from ai_image_service_hybrid import HybridAIImageService
 from loguru import logger
+
+# Load environment variables from DataCollection.env
+load_dotenv("DataCollection.env")
 
 async def generate_ai_images_for_stored_events(storage, stored_count):
     """Generate AI images for recently stored events"""
