@@ -42,8 +42,8 @@ jobs:
           FIRECRAWL_TIMEOUT_LIMIT=15
           FIRECRAWL_WHATSON_LIMIT=10
           
-          # AI Image Generation
-          ENABLE_AI_IMAGE_GENERATION=true
+          # AI Image Generation - DISABLED FOR COST OPTIMIZATION
+          ENABLE_AI_IMAGE_GENERATION=false
           AI_IMAGE_BATCH_SIZE=5
           AI_IMAGE_BATCH_DELAY=10
           
