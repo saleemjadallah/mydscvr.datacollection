@@ -16,6 +16,21 @@ from dotenv import load_dotenv
 from motor.motor_asyncio import AsyncIOMotorClient
 import base64
 import hashlib
+import sys
+
+# Add Backend utils to path for monitor import
+backend_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'Backend'))
+if backend_path not in sys.path:
+    sys.path.insert(0, backend_path)
+
+try:
+    from utils.ai_image_monitor import monitor_ai_generation, get_monitor
+except ImportError:
+    # Fallback if monitor not available
+    def monitor_ai_generation(func):
+        return func
+    def get_monitor():
+        return None
 
 # Load environment variables
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), 'AI_API.env'))
@@ -170,10 +185,28 @@ class AIImageService:
             
         return final_prompt
     
+    @monitor_ai_generation
     async def generate_image(self, event: Dict[str, Any]) -> Optional[str]:
         """Generate AI image for a single event"""
         
         event_title = event.get('title', 'Unknown Event')
+        event_id = str(event.get('_id', event.get('id', '')))
+        
+        # Check if event already has an AI-generated image
+        existing_ai_image = None
+        if 'images' in event and isinstance(event['images'], dict):
+            existing_ai_image = event['images'].get('ai_generated')
+        elif 'image_url' in event:
+            # Check if image_url is an AI-generated image
+            image_url = event.get('image_url', '')
+            if any(pattern in str(image_url) for pattern in ['mydscvr-event-images.s3', '/images/events/', 'oaidalleapiprodscus']):
+                existing_ai_image = image_url
+                
+        # If event already has an AI image, return it without regenerating
+        if existing_ai_image and existing_ai_image not in [None, '', 'null']:
+            logger.info(f"✅ Event {event_id} already has AI-generated image: {existing_ai_image[:50]}...")
+            return existing_ai_image
+        
         logger.info(f"🎨 Generating AI image for: {event_title}")
         
         try:
