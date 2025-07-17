@@ -20,12 +20,10 @@ jobs:
         
     - name: Install dependencies
       run: |
-        cd DataCollection
         pip install -r requirements.txt
         
     - name: Run tests
       run: |
-        cd DataCollection
         python -m pytest --tb=short || echo "Tests completed with issues"
         
     - name: Deploy to EC2 DataCollection Repository
@@ -43,8 +41,7 @@ jobs:
           git remote -v | grep datacollection || git remote add datacollection https://github.com/saleemjadallah/mydscvr.datacollection.git
           git pull datacollection main || git pull origin main
           
-          # Navigate to DataCollection directory
-          cd DataCollection
+          # Stay in repository root - no need to cd into subdirectory
           
           # Create AI_API.env file with secrets
           cat > AI_API.env << EOF
