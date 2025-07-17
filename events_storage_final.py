@@ -10,7 +10,8 @@ import json
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional
 import re
-from pymongo import MongoClient, ASCENDING, DESCENDING
+from motor.motor_asyncio import AsyncIOMotorClient
+from pymongo import ASCENDING, DESCENDING
 from pymongo.errors import DuplicateKeyError, ConnectionFailure
 from bson import ObjectId
 from loguru import logger
@@ -53,15 +54,11 @@ class EventsStorageFinal:
             raise ValueError("MongoDB URI not found. Set one of: Mongo_URI, MONGO_URI, MONGODB_URL, or MONGODB_URI in environment files.")
         
         try:
-            self.client = MongoClient(
+            self.client = AsyncIOMotorClient(
                 self.mongodb_uri,
                 serverSelectionTimeoutMS=5000,
                 tlsInsecure=True
             )
-            
-            # Test connection
-            self.client.admin.command('ping')
-            logger.success("Connected to MongoDB successfully")
             
             self.db = self.client[self.database_name]
             self.events_collection = self.db.events
@@ -69,36 +66,47 @@ class EventsStorageFinal:
             # Initialize deduplicator
             self.deduplicator = EventDeduplicator(self.events_collection)
             
-            # Create indexes
-            self._create_indexes()
+            logger.info("MongoDB client initialized (connection will be tested on first operation)")
             
         except Exception as e:
-            logger.error(f"Failed to connect to MongoDB: {e}")
+            logger.error(f"Failed to initialize MongoDB client: {e}")
             raise
     
-    def _create_indexes(self):
+    async def test_connection(self):
+        """Test MongoDB connection"""
+        try:
+            await self.client.admin.command('ping')
+            logger.success("Connected to MongoDB successfully")
+            # Create indexes after successful connection
+            await self._create_indexes()
+            return True
+        except Exception as e:
+            logger.error(f"MongoDB connection test failed: {e}")
+            return False
+    
+    async def _create_indexes(self):
         """Create necessary indexes for performance"""
         try:
             # Compound index for deduplication
-            self.events_collection.create_index(
+            await self.events_collection.create_index(
                 [("name", ASCENDING), ("startDate", ASCENDING)],
                 name="dedup_index"
             )
             
             # Index for date-based queries
-            self.events_collection.create_index(
+            await self.events_collection.create_index(
                 [("startDate", DESCENDING)],
                 name="date_index"
             )
             
             # Index for status
-            self.events_collection.create_index(
+            await self.events_collection.create_index(
                 [("status", ASCENDING)],
                 name="status_index"
             )
             
             # Text index for search
-            self.events_collection.create_index(
+            await self.events_collection.create_index(
                 [("name", "text"), ("description", "text")],
                 name="search_index"
             )
@@ -107,7 +115,7 @@ class EventsStorageFinal:
         except Exception as e:
             logger.warning(f"Error creating indexes: {e}")
     
-    def store_events(self, events: List[Dict[str, Any]], source: str) -> Dict[str, Any]:
+    async def store_events(self, events: List[Dict[str, Any]], source: str = None, session_id: str = None) -> Dict[str, Any]:
         """
         Store events in MongoDB with deduplication
         
@@ -129,7 +137,8 @@ class EventsStorageFinal:
         for event in events:
             try:
                 # Check for duplicates
-                is_duplicate, existing_event = self.deduplicator.is_duplicate(event)
+                is_duplicate = await self.deduplicator.is_duplicate_event(event)
+                existing_event = None
                 
                 if is_duplicate:
                     stats['duplicates'] += 1
@@ -147,7 +156,7 @@ class EventsStorageFinal:
                     event['_id'] = str(ObjectId())
                 
                 # Store in MongoDB
-                self.events_collection.insert_one(event)
+                await self.events_collection.insert_one(event)
                 stats['stored'] += 1
                 logger.info(f"Stored event: {event.get('name', 'Unknown')}")
                 
@@ -159,25 +168,33 @@ class EventsStorageFinal:
                 logger.error(f"Error storing event: {e}")
         
         logger.info(f"Storage stats for {source}: {stats}")
-        return stats
+        
+        # Return format compatible with enhanced_collection.py expectations
+        return {
+            'stored_count': stats['stored'],
+            'total_processed': stats['total'],
+            'duplicates_prevented': stats['duplicates'],
+            'errors': stats['errors']
+        }
     
-    def get_recent_events(self, days: int = 7, limit: int = 100) -> List[Dict[str, Any]]:
+    async def get_recent_events(self, days: int = 7, limit: int = 100) -> List[Dict[str, Any]]:
         """Get recent events from the database"""
         cutoff_date = datetime.utcnow() - timedelta(days=days)
         
-        events = list(self.events_collection.find(
+        cursor = self.events_collection.find(
             {
                 'startDate': {'$gte': cutoff_date.isoformat()},
                 'status': 'active'
             }
-        ).sort('startDate', DESCENDING).limit(limit))
+        ).sort('startDate', DESCENDING).limit(limit)
         
+        events = await cursor.to_list(length=limit)
         return events
     
-    def update_event_images(self, event_id: str, image_data: Dict[str, Any]) -> bool:
+    async def update_event_images(self, event_id: str, image_data: Dict[str, Any]) -> bool:
         """Update event with AI-generated images"""
         try:
-            result = self.events_collection.update_one(
+            result = await self.events_collection.update_one(
                 {'_id': event_id},
                 {
                     '$set': {
@@ -191,7 +208,51 @@ class EventsStorageFinal:
             logger.error(f"Error updating event images: {e}")
             return False
     
-    def close(self):
+    async def create_extraction_session(self, session_name: str, session_data: Dict[str, Any] = None) -> str:
+        """Create an extraction session record"""
+        session_id = str(ObjectId())
+        
+        if session_data is None:
+            session_data = {}
+        
+        session_record = {
+            "_id": ObjectId(),
+            "session_id": session_id,
+            "session_name": session_name,
+            "started_at": datetime.utcnow(),
+            "status": "in_progress",
+            "events_extracted": 0,
+            "events_stored": 0,
+            "duplicates_found": 0,
+            "errors": [],
+            **session_data
+        }
+        
+        # Store in sessions collection if exists, otherwise just return the ID
+        if hasattr(self.db, 'extraction_sessions'):
+            await self.db.extraction_sessions.insert_one(session_record)
+        
+        logger.info(f"Created extraction session: {session_id} ({session_name})")
+        return session_id
+    
+    async def update_extraction_session(self, session_id: str, updates: Dict[str, Any]):
+        """Update extraction session with results"""
+        if hasattr(self.db, 'extraction_sessions'):
+            await self.db.extraction_sessions.update_one(
+                {"session_id": session_id},
+                {"$set": updates}
+            )
+        logger.info(f"Updated extraction session {session_id}")
+    
+    async def get_total_events_count(self) -> int:
+        """Get total number of events in the collection"""
+        try:
+            return await self.events_collection.count_documents({})
+        except Exception as e:
+            logger.error(f"Error counting events: {e}")
+            return 0
+    
+    async def close(self):
         """Close MongoDB connection"""
         if hasattr(self, 'client'):
             self.client.close()

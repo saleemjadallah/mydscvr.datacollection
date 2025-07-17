@@ -113,20 +113,23 @@ async def run_status_check():
     logger.info("📊 Checking current database status...")
     
     try:
-        from perplexity_storage import PerplexityEventsStorage
-        storage = PerplexityEventsStorage()
+        from events_storage_final import EventsStorageFinal
+        storage = EventsStorageFinal()
+        
+        # Test connection first
+        connected = await storage.test_connection()
         
         # Get basic collection stats
-        total_events = storage.get_total_events_count()
+        total_events = await storage.get_total_events_count() if connected else 0
         
         print(f"\n{'='*60}")
         print(f"📊 DATABASE STATUS")
         print(f"{'='*60}")
         print(f"Total Events: {total_events}")
-        print(f"Connection: {'OK' if storage else 'FAILED'}")
+        print(f"Connection: {'OK' if connected else 'FAILED'}")
         print(f"{'='*60}\n")
         
-        storage.close()
+        await storage.close()
         
     except Exception as e:
         logger.error(f"Failed to get database status: {e}")

@@ -11,7 +11,7 @@ from datetime import datetime
 from dotenv import load_dotenv
 from perplexity_events_extractor import DubaiEventsPerplexityExtractor
 from firecrawl_mcp_extractor import FirecrawlMCPExtractor
-from perplexity_storage import PerplexityEventsStorage
+from events_storage_final import EventsStorageFinal
 from ai_image_service_hybrid import HybridAIImageService
 from loguru import logger
 
@@ -117,7 +117,7 @@ async def generate_ai_images_for_stored_events(storage, stored_count):
 
 async def collect_and_store_events():
     try:
-        storage = PerplexityEventsStorage()
+        storage = EventsStorageFinal()
         
         # Check if Firecrawl supplement is enabled
         enable_firecrawl = os.getenv('ENABLE_FIRECRAWL_SUPPLEMENT', 'false').lower() == 'true'
@@ -198,7 +198,7 @@ async def collect_and_store_events():
             
             # Create extraction session
             session_type = 'hybrid_collection' if enable_firecrawl else 'perplexity_collection'
-            session_id = storage.create_extraction_session(session_type)
+            session_id = await storage.create_extraction_session(session_type)
             logger.info(f'📝 Created session: {session_id}')
             
             # Store events one by one to identify exact issue
@@ -240,7 +240,7 @@ async def collect_and_store_events():
                     'firecrawl_enabled': True
                 })
             
-            storage.update_extraction_session(session_id, session_update)
+            await storage.update_extraction_session(session_id, session_update)
             
             logger.info(f'🏁 HYBRID COLLECTION COMPLETED SUCCESSFULLY')
             
@@ -254,7 +254,7 @@ async def collect_and_store_events():
             logger.info(f'   🔥 Firecrawl events stored: {len(firecrawl_events)}')
             logger.info(f'   💾 Total unique events stored: {stored_count}')
         
-        storage.close()
+        await storage.close()
         return stored_count if all_events else 0
         
     except Exception as e:

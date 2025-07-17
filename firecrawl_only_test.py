@@ -8,12 +8,12 @@ import asyncio
 import json
 import os
 from firecrawl_mcp_extractor import FirecrawlMCPExtractor
-from perplexity_storage import PerplexityEventsStorage
+from events_storage_final import EventsStorageFinal
 from loguru import logger
 
 async def collect_firecrawl_only():
     try:
-        storage = PerplexityEventsStorage()
+        storage = EventsStorageFinal()
         
         logger.info('🔥 Starting Firecrawl-ONLY extraction test...')
         
@@ -59,7 +59,7 @@ async def collect_firecrawl_only():
         
         if firecrawl_events:
             # Create extraction session
-            session_id = storage.create_extraction_session('firecrawl_only_test')
+            session_id = await storage.create_extraction_session('firecrawl_only_test')
             logger.info(f'📝 Created session: {session_id}')
             
             # Store events one by one to identify exact issue
@@ -96,7 +96,7 @@ async def collect_firecrawl_only():
                 'firecrawl_enabled': True
             }
             
-            storage.update_extraction_session(session_id, session_update)
+            await storage.update_extraction_session(session_id, session_update)
             
             logger.info(f'🏁 FIRECRAWL-ONLY TEST COMPLETED SUCCESSFULLY')
             logger.info(f'📊 Final Summary:')
@@ -115,7 +115,7 @@ async def collect_firecrawl_only():
         else:
             logger.warning("⚠️ No Firecrawl events extracted")
         
-        storage.close()
+        await storage.close()
         return len(firecrawl_events) if firecrawl_events else 0
         
     except Exception as e:

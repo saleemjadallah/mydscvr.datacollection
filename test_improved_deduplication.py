@@ -12,7 +12,7 @@ from datetime import datetime
 # Add backend path for deduplication
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'Backend'))
 
-from perplexity_storage import PerplexityEventsStorage
+from events_storage_final import EventsStorageFinal
 from motor.motor_asyncio import AsyncIOMotorClient
 from utils.deduplication import EventDeduplicator
 
