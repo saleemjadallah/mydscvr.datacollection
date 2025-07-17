@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 from perplexity_events_extractor import DubaiEventsPerplexityExtractor
 from firecrawl_mcp_extractor import FirecrawlMCPExtractor
 from events_storage_final import EventsStorageFinal
-from ai_image_service_hybrid import HybridAIImageService
+from ai_image_service_s3 import AIImageServiceS3
 from loguru import logger
 
 # Load environment variables from DataCollection.env
@@ -25,7 +25,7 @@ async def generate_ai_images_for_stored_events(storage, stored_count):
         logger.info(f'🎨 Starting AI image generation for {stored_count} stored events...')
         
         # Initialize AI image service
-        ai_service = HybridAIImageService()
+        ai_service = AIImageServiceS3()
         
         # Get database connection from storage
         db = storage.db
@@ -63,16 +63,13 @@ async def generate_ai_images_for_stored_events(storage, stored_count):
                     event_title = event.get('title', 'Unknown Event')
                     logger.info(f'🎨 Generating image for: {event_title}')
                     
-                    # Generate AI image with hybrid approach
-                    image_url = await ai_service.generate_image(event)
+                    # Generate AI image and store in S3
+                    image_url = await ai_service.generate_and_store_image(event)
                     
                     if image_url:
-                        # Create prompt for storage
-                        prompt_used = ai_service._create_hybrid_prompt(event)
-                        
                         # Update event with generated image
                         await ai_service.update_event_with_image(
-                            db, event['_id'], image_url, prompt_used
+                            db, event['_id'], image_url
                         )
                         
                         success_count += 1
