@@ -70,4 +70,7 @@ celerybeat-schedule*
 archive_*/
 
 # Monitoring output
-monitoring/output/
+monitoring/output/*.env
+DataCollection.env
+Mongo.env
+AI_API.env
