@@ -20,10 +20,12 @@ jobs:
         
     - name: Install dependencies
       run: |
+        cd DataCollection
         pip install -r requirements.txt
         
     - name: Run tests
       run: |
+        cd DataCollection
         python -m pytest --tb=short || echo "Tests completed with issues"
         
     - name: Deploy to EC2 DataCollection Repository
@@ -38,7 +40,11 @@ jobs:
           cd /home/ubuntu/mydscvr-datacollection
           
           # Pull latest changes from the DataCollection repository
-          git pull origin main
+          git remote -v | grep datacollection || git remote add datacollection https://github.com/saleemjadallah/mydscvr.datacollection.git
+          git pull datacollection main || git pull origin main
+          
+          # Navigate to DataCollection directory
+          cd DataCollection
           
           # Create AI_API.env file with secrets
           cat > AI_API.env << EOF
@@ -46,6 +52,12 @@ jobs:
           # BROWSE_AI_API_KEY - Not configured in secrets
           PERPLEXITY_API_KEY=${{ secrets.PERPLEXITY_API_KEY }}
           OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+          
+          # AWS S3 Configuration
+          AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          S3_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME }}
+          S3_REGION=${{ secrets.S3_REGION }}
           
           # Rate limiting settings
           FIRECRAWL_RATE_LIMIT=100
@@ -91,6 +103,12 @@ jobs:
           PERPLEXITY_API_KEY=${{ secrets.PERPLEXITY_API_KEY }}
           OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
           
+          # AWS S3 Configuration
+          AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          S3_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME }}
+          S3_REGION=${{ secrets.S3_REGION }}
+          
           # Google OAuth Configuration
           GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}
           
@@ -107,8 +125,8 @@ jobs:
           MAX_RETRY_ATTEMPTS=3
           RETRY_DELAY_SECONDS=5
           
-          # AI Image Generation Configuration (HYBRID MODE) - DISABLED FOR COST OPTIMIZATION
-          ENABLE_AI_IMAGE_GENERATION=false
+          # AI Image Generation Configuration (HYBRID MODE) - ENABLED WITH S3
+          ENABLE_AI_IMAGE_GENERATION=true
           AI_IMAGE_BATCH_SIZE=5
           AI_IMAGE_BATCH_DELAY=10
           
