@@ -43,7 +43,7 @@ jobs:
           # Create AI_API.env file with secrets
           cat > AI_API.env << EOF
           FIRECRAWL_API_KEY=${{ secrets.FIRECRAWL_API_KEY }}
-          BROWSE_AI_API_KEY=${{ secrets.BROWSE_AI_API_KEY }}
+          # BROWSE_AI_API_KEY - Not configured in secrets
           PERPLEXITY_API_KEY=${{ secrets.PERPLEXITY_API_KEY }}
           OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
           
@@ -63,14 +63,14 @@ jobs:
           # Create Mongo.env file
           cat > Mongo.env << EOF
           # MongoDB Configuration for Data Collection
-          MONGO_URI=${{ secrets.MONGODB_URL }}
+          Mongo_URI=${{ secrets.MONGO_URI }}
           MONGO_USER=${{ secrets.MONGO_USER }}
           MONGO_PASSWORD=${{ secrets.MONGO_PASSWORD }}
-          MONGO_DB_NAME=${{ secrets.MONGODB_DATABASE }}
+          MONGO_DB_NAME=${{ secrets.MONGO_DB_NAME }}
           
           # Additional MongoDB settings that may be referenced
-          MONGODB_URL=${{ secrets.MONGODB_URL }}
-          MONGODB_DATABASE=${{ secrets.MONGODB_DATABASE }}
+          MONGODB_URL=${{ secrets.MONGO_URI }}
+          MONGODB_DATABASE=${{ secrets.MONGO_DB_NAME }}
           EOF
           
           # Create DataCollection.env file with hybrid mode enabled
@@ -81,10 +81,10 @@ jobs:
           LOG_LEVEL=INFO
           
           # MongoDB Configuration
-          MONGO_URI=${{ secrets.MONGODB_URL }}
+          MONGO_URI=${{ secrets.MONGO_URI }}
           MONGO_USER=${{ secrets.MONGO_USER }}
           MONGO_PASSWORD=${{ secrets.MONGO_PASSWORD }}
-          MONGO_DB_NAME=${{ secrets.MONGODB_DATABASE }}
+          MONGO_DB_NAME=${{ secrets.MONGO_DB_NAME }}
           
           # API Keys
           FIRECRAWL_API_KEY=${{ secrets.FIRECRAWL_API_KEY }}
@@ -95,8 +95,8 @@ jobs:
           GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}
           
           # Backend Integration
-          BACKEND_API_URL=${{ secrets.BACKEND_API_URL }}
-          BACKEND_WEBHOOK_URL=${{ secrets.BACKEND_WEBHOOK_URL }}
+          BACKEND_API_URL=https://mydscvr.xyz/api
+          BACKEND_WEBHOOK_URL=https://mydscvr.xyz/api/webhook
           BACKEND_API_KEY=${{ secrets.BACKEND_API_KEY }}
           
           # Rate Limiting Settings
