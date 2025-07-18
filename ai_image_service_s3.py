@@ -125,7 +125,7 @@ class AIImageServiceS3:
             ssl_context = ssl.create_default_context(cafile=certifi.where())
             connector = aiohttp.TCPConnector(ssl=ssl_context)
             async with aiohttp.ClientSession(connector=connector) as session:
-                async with session.get(url, timeout=aiohttp.ClientTimeout(total=30)) as response:
+                async with session.get(url, timeout=aiohttp.ClientTimeout(total=120)) as response:
                     if response.status == 200:
                         return await response.read()
                     else:
@@ -196,7 +196,7 @@ class AIImageServiceS3:
                     self.base_url,
                     headers=self.headers,
                     json=payload,
-                    timeout=aiohttp.ClientTimeout(total=60)
+                    timeout=aiohttp.ClientTimeout(total=300)
                 ) as response:
                     
                     if response.status == 200:
